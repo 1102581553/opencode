@@ -1,7 +1,7 @@
 name: build-desktop
 
 on:
-  workflow_dispatch:                      # 允许手动触发
+  workflow_dispatch:
   push:
     branches:
       - dev
@@ -11,15 +11,14 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true               # 改为 false，避免取消旧作业（可按需调整）
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  # 构建 CLI（所有平台，重点生成 Windows 二进制）
   build-cli:
-    runs-on: ubuntu-latest                # 使用 GitHub 官方 runner，避免等待 Blacksmith
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,8 +27,7 @@ jobs:
       - uses: ./.github/actions/setup-bun
 
       - name: Build CLI (all platforms)
-        run: |
-          ./packages/opencode/script/build.ts
+        run: ./packages/opencode/script/build.ts
         env:
           OPENCODE_VERSION: dev
           OPENCODE_RELEASE: ""
@@ -42,10 +40,9 @@ jobs:
           name: opencode-cli-windows
           path: packages/opencode/dist/opencode-windows-*
 
-  # 构建 Tauri 桌面端（Windows）
   build-tauri-windows:
     name: Tauri Windows (${{ matrix.target }})
-    needs: build-cli                      # 等待 CLI 构建完成
+    needs: build-cli
     strategy:
       fail-fast: false
       matrix:
@@ -56,7 +53,7 @@ jobs:
           - target: x86_64-pc-windows-msvc
             runner: windows-2025
           - target: aarch64-pc-windows-msvc
-            runner: windows-2025          # GitHub 官方 Windows 2025 runner 支持 ARM64（通过仿真）
+            runner: windows-2025
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -99,20 +96,12 @@ jobs:
           bun ./scripts/prepare.ts
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@390cbe447412ced1303d35abe75287949e43437a   # 固定 SHA，与原项目一致
         timeout-minutes: 30
         with:
           projectPath: packages/desktop
-          args: --target ${{ matrix.target }} --config ./src-tauri/tauri.prod.conf.json
+          uploadWorkflowArtifacts: true
+          args: --target ${{ matrix.target }} --config ./src-tauri/tauri.prod.conf.json --verbose
           tauriScript: cargo tauri
         env:
           GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Upload Windows executables
-        uses: actions/upload-artifact@v4
-        with:
-          name: opencode-desktop-${{ matrix.target }}
-          path: |
-            packages/desktop/src-tauri/target/${{ matrix.target }}/release/*.exe
-            packages/desktop/src-tauri/target/${{ matrix.target }}/release/*.msi
-          if-no-files-found: error
