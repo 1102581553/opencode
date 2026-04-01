@@ -48,10 +48,11 @@ export namespace Tool {
   export type InferParameters<T extends Info> = T extends Info<infer P> ? z.infer<P> : never
   export type InferMetadata<T extends Info> = T extends Info<any, infer M> ? M : never
 
-  export function define<Parameters extends z.ZodType, Result extends Metadata>(
+// packages/opencode/src/tool/tool.ts  只替换 define 函数中的 execute 包装部分：
+  export function define(
     id: string,
-    init: Info<Parameters, Result>["init"] | Def<Parameters, Result>,
-  ): Info<Parameters, Result> {
+    init: Info["init"] | Def,
+  ): Info {
     return {
       id,
       init: async (initCtx) => {
@@ -65,7 +66,9 @@ export namespace Tool {
               throw new Error(toolInfo.formatValidationError(error), { cause: error })
             }
             throw new Error(
-              `The ${id} tool was called with invalid arguments: ${error}.\nPlease rewrite the input so it satisfies the expected schema.`,
+              `The ${id} tool was called with invalid arguments: ${error}.\n` +
+              `Please rewrite the input so it satisfies the expected schema. ` +
+              `System will auto-allow up to 3 correction attempts before stopping.`,
               { cause: error },
             )
           }
