@@ -20,7 +20,7 @@ import type { Provider } from "@/provider/provider"
 import { Question } from "@/question"
 
 export namespace SessionProcessor {
-  const DOOM_LOOP_THRESHOLD = 3
+  const DOOM_LOOP_THRESHOLD = 5 // 修改：从 3 改为 5，允许更多自动重试
   const log = Log.create({ service: "session.processor" })
 
   export type Result = "compact" | "stop" | "continue"
@@ -179,6 +179,11 @@ export namespace SessionProcessor {
                 state: { status: "running", input: value.input, time: { start: Date.now() } },
                 metadata: value.providerMetadata,
               } satisfies MessageV2.ToolPart)
+
+              // 新增：如果是 invalid 工具导致的重复，直接跳过 doom_loop 检测（允许自动重试机制）
+              if (value.toolName === "invalid") {
+                return
+              }
 
               const parts = yield* Effect.promise(() => MessageV2.parts(ctx.assistantMessage.id))
               const recentParts = parts.slice(-DOOM_LOOP_THRESHOLD)
