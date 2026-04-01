@@ -1,12 +1,12 @@
 name: build-desktop
 
 on:
-  workflow_dispatch:                      # 允许手动触发
+  workflow_dispatch:
   push:
     branches:
       - dev
     paths:
-      - 'packages/desktop/**'              # 仅桌面端代码变动时触发
+      - 'packages/desktop/**'
       - '.github/workflows/build-desktop.yml'
 
 concurrency:
@@ -17,8 +17,35 @@ permissions:
   contents: read
 
 jobs:
+  # 构建 CLI（跨平台，生成 Windows 二进制）
+  build-cli:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Build CLI (all platforms)
+        run: |
+          ./packages/opencode/script/build.ts
+        env:
+          OPENCODE_VERSION: dev
+          OPENCODE_RELEASE: ""
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload Windows CLI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-cli-windows
+          path: packages/opencode/dist/opencode-windows-*
+
+  # 构建 Tauri 桌面端（Windows）
   build-tauri-windows:
     name: Tauri Windows (${{ matrix.target }})
+    needs: build-cli
     strategy:
       fail-fast: false
       matrix:
@@ -27,42 +54,42 @@ jobs:
           - aarch64-pc-windows-msvc
         include:
           - target: x86_64-pc-windows-msvc
-            runner: windows-2025                 # 官方 Windows runner 支持 x64
+            runner: windows-2025
           - target: aarch64-pc-windows-msvc
-            runner: windows-2025                 # 官方 runner 可通过 QEMU 模拟，或使用自托管 ARM runner
+            runner: windows-2025
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: ./.github/actions/setup-bun
+      - uses: ./.github/actions/setup-bun
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '24'
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/desktop/src-tauri
           shared-key: ${{ matrix.target }}
 
-      - name: Prepare environment (download CLI artifact)
+      - name: Download Windows CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: opencode-cli-windows
+          path: packages/opencode/dist
+
+      - name: Prepare environment
         env:
-          OPENCODE_VERSION: ${{ github.ref_name }}
+          OPENCODE_VERSION: dev
           GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_CLI_ARTIFACT: opencode-cli-windows
           RUST_TARGET: ${{ matrix.target }}
