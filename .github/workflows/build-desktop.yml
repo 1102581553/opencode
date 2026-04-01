@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false               # 改为 false，避免取消旧作业（可按需调整）
+  cancel-in-progress: true               # 改为 false，避免取消旧作业（可按需调整）
 
 permissions:
   contents: read
