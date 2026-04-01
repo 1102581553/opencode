@@ -1,7 +1,7 @@
 name: build-desktop
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:                      # 允许手动触发
   push:
     branches:
       - dev
@@ -11,15 +11,15 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false               # 改为 false，避免取消旧作业（可按需调整）
 
 permissions:
   contents: read
 
 jobs:
-  # 构建 CLI（跨平台，生成 Windows 二进制）
+  # 构建 CLI（所有平台，重点生成 Windows 二进制）
   build-cli:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest                # 使用 GitHub 官方 runner，避免等待 Blacksmith
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,7 +45,7 @@ jobs:
   # 构建 Tauri 桌面端（Windows）
   build-tauri-windows:
     name: Tauri Windows (${{ matrix.target }})
-    needs: build-cli
+    needs: build-cli                      # 等待 CLI 构建完成
     strategy:
       fail-fast: false
       matrix:
@@ -56,7 +56,7 @@ jobs:
           - target: x86_64-pc-windows-msvc
             runner: windows-2025
           - target: aarch64-pc-windows-msvc
-            runner: windows-2025
+            runner: windows-2025          # GitHub 官方 Windows 2025 runner 支持 ARM64（通过仿真）
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
